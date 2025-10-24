@@ -134,16 +134,18 @@ class Fluent::Cloudfront_LogInput < Fluent::Input
 
     record = [
       @fields,
-      CGI.unescape(line).strip.split("\t") # hoge%2520fuga -> hoge%20fuga
+      CGI.unescape(line.gsub('%09', ' ')).strip.split("\t") # don't unescape tab (%09)
     ].transpose.to_h
 
     timestamp = if @parse_date_time
-                  Time.iso8601("#{record['date']}T#{record['time']}+00:00").to_i
-                else
-                  Time.now.to_i
-                end
+      Time.iso8601("#{record['date']}T#{record['time']}+00:00").to_i
+    else
+      Time.now.to_i
+    end
 
     router.emit(@tag, timestamp, record)
+
+    record # for testing purposes
   end
 
   def process_content(content)

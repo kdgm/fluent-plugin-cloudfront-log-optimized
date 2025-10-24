@@ -1,3 +1,6 @@
+## Release 0.2.1
+Merge pull request #1 from kdgm/feature/fix/escaped-tab-handling
+
 ## Release 0.2.0 (kjwierenga)
 Merge branch 'feature/enh/rename-to-optimized' into develop
 Merge branch 'feature/fix/process-log-files-in-last-modified-order' into develop
