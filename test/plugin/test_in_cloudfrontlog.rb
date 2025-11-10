@@ -121,6 +121,22 @@ class Cloudfront_LogInputTest < Test::Unit::TestCase
 
       assert_equal(emitted_event['cs(User-Agent)'], "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.1 20.51")
     end
+
+    test "log line without %09 in user-agent is parsed correctly" do
+      driver = create_driver(MINIMAL_CONFIG)
+      instance = driver.instance
+
+      version_line = "#Version: 1.0"
+      fields_line = "#Fields: date time x-edge-location sc-bytes c-ip cs-method cs(Host) cs-uri-stem sc-status cs(Referer) cs(User-Agent) cs-uri-query cs(Cookie) x-edge-result-type x-edge-request-id x-host-header cs-protocol cs-bytes time-taken x-forwarded-for ssl-protocol ssl-cipher x-edge-response-result-type cs-protocol-version fle-status fle-encrypted-fields c-port time-to-first-byte x-edge-detailed-result-type sc-content-type sc-content-len sc-range-start sc-range-end"
+      regression_line_with_excaped_tab = "2025-10-12	09:52:59	MRS53-P3	1400	150.107.232.112	POST	d2p1j3y3mcauy0.cloudfront.net	/plugin/add	403	-	Mozilla/5.0%20(Macintosh;%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit/605.1.15%20(KHTML,%20like%20Gecko)%20Version/17.3.1%20Safari/605.1.1-20.51	-	-	Error	WcPCNG0WyL4BbXhEXq4AQulhrqte2TPUHt1Uz-iqcSwtx1L6ORdTOA==	livecdn.kerkdienstgemist.nl	https	9760	0.124	-	TLSv1.3	TLS_AES_128_GCM_SHA256	Error	HTTP/1.1	-	-	50294	0.000	InvalidRequestMethod	text/html	1053	-	-"
+
+      # Prime the processor with version and fields lines
+      instance.process_line(version_line)
+      instance.process_line(fields_line)
+      emitted_event = instance.process_line(regression_line_with_excaped_tab)
+
+      assert_equal(emitted_event['cs(User-Agent)'], "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.1-20.51")
+    end
   end
 
 end

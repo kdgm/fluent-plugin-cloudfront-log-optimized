@@ -132,9 +132,12 @@ class Fluent::Cloudfront_LogInput < Fluent::Input
       return
     end
 
+    # replace %09 (tab) with space to avoid incorrect introduction of tab character by CGI.unescape
+    line["%09"] = " " if line.include?("%09")
+
     record = [
       @fields,
-      CGI.unescape(line.gsub('%09', ' ')).strip.split("\t") # don't unescape tab (%09)
+      CGI.unescape(line).split("\t")
     ].transpose.to_h
 
     timestamp = if @parse_date_time

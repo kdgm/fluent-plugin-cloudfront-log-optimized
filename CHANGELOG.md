@@ -1,3 +1,6 @@
+## Release 0.2.2
+- [end] replace slow gsub with more efficient string replace
+
 ## Release 0.2.1
 Merge pull request #1 from kdgm/feature/fix/escaped-tab-handling
 
