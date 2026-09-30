@@ -139,4 +139,63 @@ class Cloudfront_LogInputTest < Test::Unit::TestCase
     end
   end
 
+  sub_test_case "invalid UTF-8 in log lines" do
+    FIELDS_LINE = "#Fields: date time x-edge-location sc-bytes c-ip cs-method cs(Host) cs-uri-stem sc-status cs(Referer) cs(User-Agent) cs-uri-query cs(Cookie) x-edge-result-type x-edge-request-id x-host-header cs-protocol cs-bytes time-taken x-forwarded-for ssl-protocol ssl-cipher x-edge-response-result-type cs-protocol-version fle-status fle-encrypted-fields c-port time-to-first-byte x-edge-detailed-result-type sc-content-type sc-content-len sc-range-start sc-range-end"
+
+    def build_line(uri_query:, user_agent: 'Mozilla/5.0')
+      [
+        '2026-08-07', '19:49:19', 'IAD55-C1', '1234', '1.2.3.4', 'GET', 'd111.cloudfront.net',
+        '/path', '200', 'https://example.com/', user_agent, uri_query, '-', 'Hit', 'AbCdEf',
+        'www.example.com', 'https', '200', '0.050', '-', 'TLSv1.2', 'ECDHE-RSA-AES128-GCM-SHA256',
+        'Hit', 'HTTP/2.0', '-', '-', '54321', '0.010', 'Hit', 'text/html', '1234', '-', '-'
+      ].join("\t")
+    end
+
+    def prime_and_process(instance, line)
+      instance.process_line("#Version: 1.0")
+      instance.process_line(FIELDS_LINE)
+      instance.process_line(line)
+    end
+
+    test "scrubs invalid UTF-8 bytes without raising" do
+      driver = create_driver(MINIMAL_CONFIG)
+      line = build_line(uri_query: "q=bad\xFFbyte&x=1", user_agent: "Mozilla/\x80Bot")
+
+      emitted_event = nil
+      assert_nothing_raised {
+        emitted_event = prime_and_process(driver.instance, line)
+      }
+
+      assert_equal(true, emitted_event['cs-uri-query'].encoding == Encoding::UTF_8)
+      assert_equal(true, emitted_event['cs-uri-query'].valid_encoding?)
+      assert_equal(true, emitted_event['cs(User-Agent)'].valid_encoding?)
+      assert_equal(true, emitted_event['cs-uri-query'].include?('q=bad'))
+      assert_equal(true, emitted_event['cs(User-Agent)'].include?('Mozilla/'))
+    end
+
+    test "preserves valid Unicode percent-encoding" do
+      driver = create_driver(MINIMAL_CONFIG)
+      line = build_line(uri_query: 'q=%C3%A7af%C3%A9&name=Jo%C3%A3o')
+
+      emitted_event = prime_and_process(driver.instance, line)
+
+      assert_equal(true, emitted_event['cs-uri-query'].include?('çafé'))
+      assert_equal(true, emitted_event['cs-uri-query'].include?('João'))
+    end
+
+    test "decodes Latin-1 percent-encoding without raising" do
+      driver = create_driver(MINIMAL_CONFIG)
+      # Real CloudFront case: "métricas" encoded as Latin-1 %E9 instead of UTF-8 %C3%A9
+      line = build_line(uri_query: 'q=5%20m%E9tricas%20que%20te%20pueden%20servir')
+
+      emitted_event = nil
+      assert_nothing_raised {
+        emitted_event = prime_and_process(driver.instance, line)
+      }
+
+      assert_equal(true, emitted_event['cs-uri-query'].valid_encoding?)
+      assert_equal(true, emitted_event['cs-uri-query'].include?('métricas'))
+    end
+  end
+
 end
